@@ -2,10 +2,12 @@
 
 <?php
 // Variables
-$dbip = "";
-$dbport = "";
-$dbusername = "";
-$dbpassword = "";
+$dbip = "localhost";
+$dbport = "3306";
+$dbusername = "root";
+$dbpassword = "rootpasss";
+
+$whm_plan = "wordpress_auto";
 
 // ----------------------------------------
 
@@ -21,19 +23,34 @@ while(count($argv)) {
 	$opts[$key] = $value;
 }
 
-if ($opts['plan'] == 'wordpress_autoinstall'){
+if ($opts['plan'] == $whm_plan){
 	// Setup user
-	$username = $opts['user'] . '_usr';
-	$dbname = $opts['user'] . '_db';
+	$cpuser = $opts['user'];
+	$username = substr($cpuser, 0, 8) . '_usr';
 	$pass = createPassword(8);
 	
+	/********
+	//debug
+	foreach ($opts as $key => $value) {
+  		echo $key . ' = ' . $value . '<br>';
+	}
+	*/	
+
 	// Create the database
-	$con = mysql_connect($ip,$username,$password);
+	$con = mysql_connect($dbip,$dbusername,$dbpassword);
+	$dbname = getDatabaseName($con, substr($cpuser, 0, 8) . '_wpdb');
 	mysql_query("CREATE DATABASE ".$dbname."",$con)or die(mysql_error());
-	mysql_query("CREATE USER ".$username."@'' IDENTIFIED BY '".$pass."'",$con) or die(mysql_error());
-	mysql_query("GRANT ALL ON ".$dbname.".* to ".$username."@'localhost'",$con) or die(mysql_error());	
-	mysql_query("GRANT DROP ON ".$dbname.".* to ".$username."@'localhost'",$con) or die(mysql_error());  	
-	
+	echo 'database created... <br />';
+	mysql_query("CREATE USER ".$username."@".$dbip." IDENTIFIED BY '".$pass."'",$con) or die(mysql_error());
+	echo 'user created... <br />';
+	mysql_query("GRANT ALL ON ".$dbname.".* to ".$username."@".$dbip."",$con) or die(mysql_error());
+	echo 'all granted... <br />';	
+	mysql_query("GRANT DROP ON ".$dbname.".* to ".$username."@".$dbip."",$con) or die(mysql_error());
+	echo 'drop granted... <br />';	  	
+
+	shell_exec("/usr/local/cpanel/bin/dbmaptool ".$cpuser." --type mysql --dbs '".$dbname."' --dbusers '".$username."'");
+	echo 'db mapped... <br />';
+
 	// Change our working directory
 	chdir('/home/'.$opts['user'].'/public_html');
 	
@@ -49,7 +66,7 @@ if ($opts['plan'] == 'wordpress_autoinstall'){
 	shell_exec('mv * ../');
 	chdir('/home/'.$opts['user'].'/public_html');
 	shell_exec('rm -rf wordpress');
-	
+	echo 'files unzipped... <br />';
 	// Create a configuration file based off of the sample
 	$content = file_get_contents('wp-config-sample.php');
 	
@@ -57,16 +74,19 @@ if ($opts['plan'] == 'wordpress_autoinstall'){
 	$content = str_replace('database_name_here', $dbname, $content);	
 	$content = str_replace('username_here', $username, $content);
 	$content = str_replace('password_here', $pass, $content);
-	$content = str_replace("'localhost'", "'192.168.1.2'", $content);
-	 
+	$content = str_replace('localhost', $dbip, $content);
+	
 	// Create file
 	$handle = fopen('wp-config.php', 'x+');
 	fwrite($handle, $content);
 	fclose($handle);
-	
+	echo 'config edited... <br />';
+
 	// Update permissions
-	shell_exec('chown -R '.$opts['user'].' *');
-	shell_exec('chgrp -R '.$opts['user'].' *');
+	shell_exec('chown -R '.$opts['user'].' .');
+	shell_exec('chgrp -R '.$opts['user'].' .');
+	shell_exec('chgrp nobody .');
+	echo 'access rights changed... <br />';
 
 	// Display our info to the user
 	echo 'Wordpress Install...Done<br />';
@@ -82,6 +102,15 @@ function createPassword($length) {
 		$i++;
 	}
 	return $password;
+}
+
+function getDatabaseName($con,$dbname){
+	if (!mysql_select_db($dbname)){
+		return $dbname;
+	}
+	else {
+		getDatabaseName($con,$dbname.'n');
+	}
 }
 
 ?>
