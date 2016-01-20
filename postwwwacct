@@ -4,8 +4,8 @@
 // Variables
 $dbip = "localhost";
 $dbport = "3306";
-$dbusername = "root";
-$dbpassword = "rootpasss";
+$rootusername = "root";
+$rootpassword = "rootpasss";
 
 $whm_plan = "wordpress_auto";
 
@@ -26,33 +26,26 @@ while(count($argv)) {
 if ($opts['plan'] == $whm_plan){
 	// Setup user
 	$cpuser = $opts['user'];
-	$username = substr($cpuser, 0, 8) . '_usr';
-	$pass = createPassword(8);
+	$dbuser = substr($cpuser, 0, 8) . '_usr';
+	$dbpass = createPassword(8);
 	
-	/********
-	//debug
-	foreach ($opts as $key => $value) {
-  		echo $key . ' = ' . $value . '<br>';
-	}
-	*/	
-
 	// Create the database
-	$con = mysql_connect($dbip,$dbusername,$dbpassword);
+	$con = mysql_connect($dbip,$rootusername,$rootpassword);
 	$dbname = getDatabaseName($con, substr($cpuser, 0, 8) . '_wpdb');
-	mysql_query("CREATE DATABASE ".$dbname."",$con)or die(mysql_error());
+	mysql_query("CREATE DATABASE {$dbname}",$con)or die(mysql_error());
 	echo 'database created... <br />';
-	mysql_query("CREATE USER ".$username."@".$dbip." IDENTIFIED BY '".$pass."'",$con) or die(mysql_error());
+	mysql_query("CREATE USER '{$dbuser}'@'{$dbip}' IDENTIFIED BY '{$dbpass}'",$con) or die(mysql_error());
 	echo 'user created... <br />';
-	mysql_query("GRANT ALL ON ".$dbname.".* to ".$username."@".$dbip."",$con) or die(mysql_error());
+	mysql_query("GRANT ALL ON {$dbname}.* to '{$dbuser}'@'{$dbip}'",$con) or die(mysql_error());
 	echo 'all granted... <br />';	
-	mysql_query("GRANT DROP ON ".$dbname.".* to ".$username."@".$dbip."",$con) or die(mysql_error());
-	echo 'drop granted... <br />';	  	
+	mysql_query("GRANT DROP ON {$dbname}.* to '{$dbuser}'@'{$dbip}'",$con) or die(mysql_error());
+	echo 'drop granted... <br />';	 
 
-	shell_exec("/usr/local/cpanel/bin/dbmaptool ".$cpuser." --type mysql --dbs '".$dbname."' --dbusers '".$username."'");
+	shell_exec("/usr/local/cpanel/bin/dbmaptool {$cpuser} --type mysql --dbs '{$dbname}' --dbusers '{$dbuser}'");
 	echo 'db mapped... <br />';
 
 	// Change our working directory
-	chdir('/home/'.$opts['user'].'/public_html');
+	chdir("/home/{$opts['user']}/public_html");
 	
 	// Remove CGI Bin folder
 	shell_exec('rm -rf cgi-bin');
@@ -62,9 +55,9 @@ if ($opts['plan'] == $whm_plan){
 	shell_exec('unzip latest.zip');
 	
 	// Extract files, move up a directory, and remove our wordpress folder
-	chdir('/home/'.$opts['user'].'/public_html/wordpress');
+	chdir("/home/{$opts['user']}/public_html/wordpress");
 	shell_exec('mv * ../');
-	chdir('/home/'.$opts['user'].'/public_html');
+	chdir("/home/{$opts['user']}/public_html");
 	shell_exec('rm -rf wordpress');
 	echo 'files unzipped... <br />';
 	// Create a configuration file based off of the sample
@@ -72,8 +65,8 @@ if ($opts['plan'] == $whm_plan){
 	
 	// Replace the default values in the sample with our custom
 	$content = str_replace('database_name_here', $dbname, $content);	
-	$content = str_replace('username_here', $username, $content);
-	$content = str_replace('password_here', $pass, $content);
+	$content = str_replace('username_here', $dbuser, $content);
+	$content = str_replace('password_here', $dbpass, $content);
 	$content = str_replace('localhost', $dbip, $content);
 	
 	// Create file
@@ -83,14 +76,14 @@ if ($opts['plan'] == $whm_plan){
 	echo 'config edited... <br />';
 
 	// Update permissions
-	shell_exec('chown -R '.$opts['user'].' .');
-	shell_exec('chgrp -R '.$opts['user'].' .');
+	shell_exec("chown -R {$opts['user']} .");
+	shell_exec("chgrp -R {$opts['user']} .");
 	shell_exec('chgrp nobody .');
 	echo 'access rights changed... <br />';
 
 	// Display our info to the user
 	echo 'Wordpress Install...Done<br />';
-	echo 'MySQL Pass:'.$pass.'<br />';
+	echo 'MySQL Pass:'.$dbpass.'<br />';
 }
 
 function createPassword($length) {
